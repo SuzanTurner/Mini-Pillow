@@ -1,0 +1,6 @@
+venv/
+*.pycache
+__pycache__/
+*.pyo
+*.pyd
+Sign.jpg
