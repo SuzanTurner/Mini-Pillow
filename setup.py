@@ -6,11 +6,11 @@ setup(
     packages=find_packages(),
     install_requires=[
         "typer[all]",
-        "PIL"
+        "Pillow"
     ],
     entry_points={
         "console_scripts": [
-            "Photoshop = Photoshop.main:main"
+            "minipil = minipil.cli:app"
         ]
     },
 )
