@@ -20,4 +20,4 @@ And so, minipil was born!
 
 ---
 
-#### If you have suggestions for improving Minipil or ideas that could enhance its usability, please feel free to open an issue or submit a pull request. Contributions of any kind are welcome and appreciated.
+### If you have suggestions for improving Minipil or ideas that could enhance its usability, please feel free to open an issue or submit a pull request. Contributions of any kind are welcome and appreciated.
