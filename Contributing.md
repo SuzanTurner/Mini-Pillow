@@ -17,3 +17,7 @@ Eventually, I asked a friend for help. (Yes, she fixed it and yes my form got ac
 This made me think, and think some more. What if I could make things simpler for lazybugs like me?
 
 And so, minipil was born!
+
+---
+
+#### If you have suggestions for improving Minipil or ideas that could enhance its usability, please feel free to open an issue or submit a pull request. Contributions of any kind are welcome and appreciated.
