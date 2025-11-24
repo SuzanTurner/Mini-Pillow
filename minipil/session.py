@@ -3,33 +3,38 @@ from pathlib import Path
 from PIL import Image, ImageOps
 import json
 import os
-from typing import Optional
-
-# inside minipil/session.py (only the relevant parts shown)
+from typing import Optional, List, Dict, Any
 
 # Session file location
 _SESSION_DIR = Path.home() / ".minipil"
 _SESSION_FILE = _SESSION_DIR / "session.json"
+
 
 class Session:
     def __init__(self):
         self.path: Optional[Path] = None
         self.img: Optional[Image.Image] = None
         self.format: Optional[str] = None
-        self._last_actions: dict = {}
+        # now store a list of actions (each action is a dict returned by parse_nl)
+        self._actions_history: List[Dict[str, Any]] = []
         self._load_from_disk()
+
+    def _ensure_dir(self):
+        if not _SESSION_DIR.exists():
+            _SESSION_DIR.mkdir(parents=True, exist_ok=True)
 
     def _save_to_disk(self):
         try:
-            if not _SESSION_DIR.exists():
-                _SESSION_DIR.mkdir(parents=True, exist_ok=True)
+            self._ensure_dir()
             data = {
                 "path": str(self.path) if self.path else None,
-                "last_actions": getattr(self, "_last_actions", {}) or {}
+                # persist the entire history
+                "actions_history": getattr(self, "_actions_history", []) or []
             }
             with open(_SESSION_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f)
         except Exception:
+            # swallow errors; don't crash CLI for persistence failures
             pass
 
     def _load_from_disk(self):
@@ -43,13 +48,19 @@ class Session:
                     if p.exists():
                         self.path = p
                         self.format = p.suffix.replace(".", "").upper() or None
-                self._last_actions = data.get("last_actions", {}) or {}
+                raw_history = data.get("actions_history", []) or []
+                # Backwards compatibility: older file might have single dict in "_last_actions"
+                if isinstance(raw_history, dict):
+                    self._actions_history = [raw_history]
+                else:
+                    # ensure it's a list copy
+                    self._actions_history = list(raw_history)
         except Exception:
+            # on error treat as no session
             self.path = None
             self.img = None
             self.format = None
-            self._last_actions = {}
-
+            self._actions_history = []
 
     def load_image(self):
         """
@@ -69,11 +80,14 @@ class Session:
         """
         Connect to a new image and persist session to disk.
         Path can be relative; it will be stored as absolute path.
+        Connecting to a new image resets the action history by design.
         """
         p = Path(path).resolve()
         if not p.exists():
             raise FileNotFoundError(f"File not found: {p}")
         self.path = p
+        # Reset history when connecting to a new image
+        self._actions_history = []
         # load image now so CLI can show details immediately
         self.load_image()
         self._save_to_disk()
@@ -101,11 +115,13 @@ class Session:
         self.path = None
         self.img = None
         self.format = None
+        self._actions_history = []
         try:
             if _SESSION_FILE.exists():
                 _SESSION_FILE.unlink()
         except Exception:
             pass
+
 
 # a single shared Session instance imported by your CLI modules
 SESSION = Session()

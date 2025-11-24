@@ -73,19 +73,38 @@ def do(text: str = typer.Argument(..., help='Natural language instruction, e.g. 
     SESSION.img = img
     SESSION._last_actions = actions
     # Persist last actions (so save in a separate process can reapply)
+    # try:
+    #     SESSION._save_to_disk()
+    # except Exception:
+    #     pass
+    # typer.echo("Edit applied. Use `minipil save [filename]` to write output.")
+
+    # inside do(...) after applying edits and storing SESSION.img
+
+    # append actions to history (so multiple do commands are cumulative)
+    if not hasattr(SESSION, "_actions_history"):
+        SESSION._actions_history = []
+
+    # only append non-empty action dicts (defensive)
+    if actions:
+        SESSION._actions_history.append(actions)
+
+    # persist to disk so save in other process can reapply entire history
     try:
         SESSION._save_to_disk()
     except Exception:
         pass
+
     typer.echo("Edit applied. Use `minipil save [filename]` to write output.")
+
 
 
 
 @app.command()
 def save(out: str = typer.Argument(None, help="Output filename (defaults to minipil.png)")):
     """
-    Save the currently edited image. If edits were applied in a different process,
-    re-load the original file and reapply last actions before writing.
+    Save the currently edited image. Re-load the original file and replay the full
+    actions history (SESSION._actions_history) in order, then write output.
     """
     if not SESSION.path:
         typer.echo("No image connected. Nothing to save.")
@@ -98,87 +117,62 @@ def save(out: str = typer.Argument(None, help="Output filename (defaults to mini
         typer.echo(f"Failed to open connected image: {e}")
         raise typer.Exit(code=1)
 
-    # Reapply last actions if any (this mirrors the 'do' steps)
-    actions = getattr(SESSION, "_last_actions", {}) or {}
+    # Replay full history
+    history = getattr(SESSION, "_actions_history", []) or []
     img = base_img
 
-    # apply same sequence as in `do`
-    if "ratio" in actions:
-        a,b = actions["ratio"]
-        img = crop_to_ratio(img, a, b)
+    for actions in history:
+        # crop/resize order same as do()
+        if "ratio" in actions:
+            a, b = actions["ratio"]
+            img = crop_to_ratio(img, a, b)
 
-    if "pixels" in actions:
-        w,h = actions["pixels"]
-        img = resize_preserve_aspect(img, target_w=w, target_h=h)
-    elif "resize_w" in actions or "resize_h" in actions:
-        w = actions.get("resize_w")
-        h = actions.get("resize_h")
-        img = resize_preserve_aspect(img, target_w=w, target_h=h)
+        if "pixels" in actions:
+            w, h = actions["pixels"]
+            img = resize_preserve_aspect(img, target_w=w, target_h=h)
+        elif "resize_w" in actions or "resize_h" in actions:
+            w = actions.get("resize_w")
+            h = actions.get("resize_h")
+            img = resize_preserve_aspect(img, target_w=w, target_h=h)
 
-    if actions.get("bnw"):
-        img = to_grayscale(img)
+        if actions.get("bnw"):
+            img = to_grayscale(img)
 
+        # additional effects
+        if actions.get("invert"):
+            img = invert_image(img)
+        if "blur" in actions:
+            img = blur_image(img, radius=float(actions.get("blur", 2.0)))
+        if "sharpen" in actions:
+            sval = actions.get("sharpen")
+            if isinstance(sval, bool):
+                img = sharpen_image(img)
+            else:
+                img = sharpen_image(img, radius=float(sval))
+        if "brightness" in actions:
+            img = adjust_brightness(img, float(actions["brightness"]))
+        if "contrast" in actions:
+            img = adjust_contrast(img, float(actions["contrast"]))
+        if "saturation" in actions:
+            img = adjust_saturation(img, float(actions["saturation"]))
+        if "rotate" in actions:
+            img = rotate_image(img, float(actions["rotate"]), expand=True)
+        if actions.get("flip_h"):
+            img = flip_horizontal(img)
+        if actions.get("flip_v"):
+            img = flip_vertical(img)
 
-        # --- additional effects ---
-    # invert
-    if actions.get("invert"):
-        img = invert_image(img)
-        typer.echo("Inverted colors")
+    # Determine final format/target_bytes: last action that specifies them wins
+    fmt = None
+    target_bytes = None
+    for a in history:
+        if a.get("format"):
+            fmt = a.get("format")
+        if a.get("target_bytes"):
+            target_bytes = a.get("target_bytes")
 
-    # blur
-    if "blur" in actions:
-        radius = float(actions.get("blur", 2.0))
-        img = blur_image(img, radius=radius)
-        typer.echo(f"Applied blur radius {radius}")
-
-    # sharpen
-    if "sharpen" in actions:
-        sval = actions.get("sharpen")
-        if isinstance(sval, bool):
-            img = sharpen_image(img)
-            typer.echo("Applied sharpen (default)")
-        else:
-            img = sharpen_image(img, radius=float(sval))
-            typer.echo(f"Applied sharpen radius {sval}")
-
-    # brightness
-    if "brightness" in actions:
-        pct = float(actions["brightness"])
-        img = adjust_brightness(img, pct)
-        typer.echo(f"Adjusted brightness {pct:+.1f}%")
-
-    # contrast
-    if "contrast" in actions:
-        pct = float(actions["contrast"])
-        img = adjust_contrast(img, pct)
-        typer.echo(f"Adjusted contrast {pct:+.1f}%")
-
-    # saturation
-    if "saturation" in actions:
-        pct = float(actions["saturation"])
-        img = adjust_saturation(img, pct)
-        typer.echo(f"Adjusted saturation {pct:+.1f}%")
-
-    # rotate
-    if "rotate" in actions:
-        deg = float(actions["rotate"])
-        img = rotate_image(img, deg, expand=True)
-        typer.echo(f"Rotated {deg} degrees")
-
-    # flip
-    if actions.get("flip_h"):
-        img = flip_horizontal(img)
-        typer.echo("Flipped horizontally")
-    if actions.get("flip_v"):
-        img = flip_vertical(img)
-        typer.echo("Flipped vertically")
-
-
-    # Now save
+    # allow CLI out argument to override format
     outname = out or "minipil.png"
-    fmt = actions.get("format")
-    target_bytes = actions.get("target_bytes")
-
     if "." in outname and not fmt:
         fmt = outname.split(".")[-1].lower()
     if "." not in outname and fmt:
@@ -201,3 +195,27 @@ def clear_session():
     """
     SESSION.clear()
     typer.echo("Session cleared.")
+
+
+@app.command("history")
+def history():
+    h = getattr(SESSION, "_actions_history", []) or []
+    if not h:
+        typer.echo("No actions in session history.")
+        return
+    for i, a in enumerate(h, start=1):
+        typer.echo(f"{i}: {a}")
+
+@app.command("undo")
+def undo():
+    h = getattr(SESSION, "_actions_history", []) or []
+    if not h:
+        typer.echo("Nothing to undo.")
+        return
+    removed = h.pop()  # remove last action
+    SESSION._actions_history = h
+    try:
+        SESSION._save_to_disk()
+    except Exception:
+        pass
+    typer.echo(f"Undid last action: {removed}")
