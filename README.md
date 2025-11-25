@@ -1,4 +1,4 @@
-# minipil
+# minipil [![PyPI version](https://badge.fury.io/py/minipil.svg)](https://pypi.org/project/minipil/)
 ## A mini-Pillow, natural-language image editor for your terminal.
 
 minipil is a lightweight command-line tool that performs image editing using simple natural-language instructions.
