@@ -165,7 +165,10 @@ Contributions are very welcome!
 open issues for:
 - batch processing
 - smarter NLP
+- general betterment of UX
+> If any different ideas, feel free to contact or make a pull request
 
 ---
-#### Created by - Yadhnika Wakde
-> With love and ```--force```
+### Authors Note
+Minipil was made to make photo editing easy, and reduce the hassle of going on to sites. 
+To all my testers, thanks for being a part of Minipil journey
