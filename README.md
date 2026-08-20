@@ -12,7 +12,7 @@ Ideal for exam photo requirements (GATE, passport photos, govt forms), quick bat
 ```
 pip install minipil
 ```
-#### 1. Connect an image
+#### 1. Navigate to the directory that contains the image and connect an image
 ```
 minipil connect image.png
 ```
@@ -172,3 +172,4 @@ open issues for:
 ### Authors Note
 Minipil was made to make photo editing easy, and reduce the hassle of going on to sites. 
 To all my testers, thanks for being a part of Minipil journey
+Contact - yadhnikawakde@gmail.com
